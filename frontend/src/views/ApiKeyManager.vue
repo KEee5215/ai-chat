@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { useApiKeyStore } from '@/stores/apikey'
+import { useApiKeyStore, type ApiKeyResponse } from '@/stores/apikey'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -10,16 +10,37 @@ const apiKeyStore = useApiKeyStore()
 
 const newKeyName = ref('')
 const createdKey = ref<{ name: string; key: string } | null>(null)
+const loading = ref(false)
 
-function handleCreateKey() {
+onMounted(async () => {
+  if (userStore.token) {
+    await apiKeyStore.fetchKeys()
+  }
+})
+
+async function handleCreateKey() {
   if (!newKeyName.value.trim()) return
-  const key = apiKeyStore.addKey(newKeyName.value.trim())
-  createdKey.value = { name: key.name, key: key.key }
-  newKeyName.value = ''
+  loading.value = true
+  try {
+    const result = await apiKeyStore.createKey(newKeyName.value.trim())
+    if (result) {
+      createdKey.value = { name: result.name, key: result.key_preview }
+    }
+    newKeyName.value = ''
+  } catch (e: any) {
+    alert(e.message || 'Failed to create API key')
+  } finally {
+    loading.value = false
+  }
 }
 
-function handleDeleteKey(id: string) {
-  apiKeyStore.removeKey(id)
+async function handleDeleteKey(id: string) {
+  if (!confirm('Are you sure you want to delete this API key?')) return
+  try {
+    await apiKeyStore.removeKey(id)
+  } catch (e: any) {
+    alert(e.message || 'Failed to delete API key')
+  }
 }
 
 function copyKey(key: string) {
@@ -27,8 +48,8 @@ function copyKey(key: string) {
 }
 
 function maskKey(key: string): string {
-  if (key.length <= 12) return key
-  return key.slice(0, 8) + '...' + key.slice(-4)
+  // Backend already provides key_preview which is masked
+  return key
 }
 
 function formatDate(dateStr: string): string {
@@ -115,10 +136,11 @@ function dismissCreated() {
               />
               <button
                 @click="handleCreateKey"
-                :disabled="!newKeyName.trim()"
+                :disabled="!newKeyName.trim() || loading"
                 class="btn btn-primary"
               >
-                Create
+                <span v-if="loading" class="loading loading-spinner loading-sm"></span>
+                <span v-else>Create</span>
               </button>
             </div>
           </div>
@@ -146,6 +168,7 @@ function dismissCreated() {
                 <tr>
                   <th>Name</th>
                   <th>Key</th>
+                  <th>Last Used</th>
                   <th>Created</th>
                   <th class="w-28">Actions</th>
                 </tr>
@@ -154,21 +177,10 @@ function dismissCreated() {
                 <tr v-for="k in apiKeyStore.keys" :key="k.id">
                   <td class="font-medium">{{ k.name }}</td>
                   <td>
-                    <div class="flex items-center gap-1">
-                      <code class="text-sm">{{ maskKey(k.key) }}</code>
-                      <button
-                        @click="copyKey(k.key)"
-                        class="btn btn-xs btn-ghost"
-                        title="Copy full key"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3.5">
-                          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                        </svg>
-                      </button>
-                    </div>
+                    <code class="text-sm">{{ k.key_preview }}</code>
                   </td>
-                  <td class="text-sm text-base-content/60">{{ formatDate(k.createdAt) }}</td>
+                  <td class="text-sm text-base-content/60">{{ k.last_used_at ? formatDate(k.last_used_at) : 'Never' }}</td>
+                  <td class="text-sm text-base-content/60">{{ formatDate(k.created_at) }}</td>
                   <td>
                     <button
                       @click="handleDeleteKey(k.id)"

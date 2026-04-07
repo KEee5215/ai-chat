@@ -1,78 +1,153 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
-import { useUserStore } from '@/stores/user'
-import { useRouter } from 'vue-router'
+import { ref, nextTick, onMounted } from "vue";
+import { useUserStore } from "@/stores/user";
+import { useChatStore, type ChatSession } from "@/stores/chat";
+import { useRouter } from "vue-router";
 
-const userStore = useUserStore()
-const router = useRouter()
+const userStore = useUserStore();
+const chatStore = useChatStore();
+const router = useRouter();
+
+const messages = ref<any[]>([]);
+const inputMessage = ref("");
+const isTyping = ref(false);
+const chatContainer = ref<HTMLElement | null>(null);
+const currentSession = ref<ChatSession | null>(null);
 
 interface Message {
-  id: number
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: Date
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
 }
 
-const messages = ref<Message[]>([
-  { id: 1, role: 'assistant', content: 'Hello! How can I help you today?', timestamp: new Date() },
-])
-const inputMessage = ref('')
-const isTyping = ref(false)
-const chatContainer = ref<HTMLElement | null>(null)
-
-let messageId = 2
+let messageId = 2;
 
 function scrollToBottom() {
   nextTick(() => {
     if (chatContainer.value) {
-      chatContainer.value.scrollTop = chatContainer.value.scrollHeight
+      chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
     }
-  })
+  });
+}
+
+async function fetchChatSessions() {
+  if (!userStore.token) {
+    router.push({ name: "login" });
+    return;
+  }
+  await chatStore.fetchSessions(userStore.token);
+}
+
+async function selectChatSession(sessionId: string) {
+  if (!userStore.token) {
+    router.push({ name: "login" });
+    return;
+  }
+  const session = chatStore.sessions.find((s) => s.id === sessionId);
+  if (session) {
+    currentSession.value = session;
+    messages.value = session.messages ? [...session.messages] : [];
+  }
+}
+
+async function handleNewChat() {
+  if (!userStore.token) {
+    router.push({ name: "login" });
+    return;
+  }
+  const session = await chatStore.createSession(userStore.token);
+  await selectChatSession(session.id);
 }
 
 async function sendMessage() {
-  if (!inputMessage.value.trim()) return
+  if (
+    !inputMessage.value.trim() ||
+    !currentSession.value?.id ||
+    !userStore.token
+  )
+    return;
 
   const userMsg: Message = {
     id: messageId++,
-    role: 'user',
+    role: "user",
     content: inputMessage.value.trim(),
     timestamp: new Date(),
-  }
-  messages.value.push(userMsg)
-  inputMessage.value = ''
-  isTyping.value = true
-  scrollToBottom()
+  };
+  messages.value.push(userMsg);
+  inputMessage.value = "";
+  isTyping.value = true;
+  scrollToBottom();
 
-  // TODO: Replace with real API call
-  setTimeout(() => {
+  try {
+    // 创建一个助手消息对象用于累积内容
     const assistantMsg: Message = {
       id: messageId++,
-      role: 'assistant',
-      content: `This is a mock response to: "${userMsg.content}"`,
+      role: "assistant",
+      content: "",
       timestamp: new Date(),
-    }
-    messages.value.push(assistantMsg)
-    isTyping.value = false
-    scrollToBottom()
-  }, 1000)
+    };
+    messages.value.push(assistantMsg);
+    scrollToBottom();
+
+    const onChunk = (text: string, done: boolean) => {
+      // 跳过空内容
+      if (text) {
+        assistantMsg.content += text;
+        scrollToBottom();
+      }
+      if (done) {
+        isTyping.value = false;
+      }
+    };
+
+    const onDone = () => {
+      isTyping.value = false;
+    };
+
+    const onError = (err: string) => {
+      console.error("Stream error:", err);
+      isTyping.value = false;
+    };
+
+    await chatStore.sendStreamMessage(
+      userStore.token,
+      currentSession.value.id,
+      userMsg.content,
+      onChunk,
+      onDone,
+      onError,
+    );
+  } catch (e) {
+    console.error("Message send error:", e);
+    isTyping.value = false;
+  }
 }
 
 function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    sendMessage()
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
   }
 }
 
 function handleLogout() {
-  userStore.logout()
-  router.push({ name: 'login' })
+  userStore.logout();
+  router.push({ name: "login" });
 }
 
 function formatTime(date: Date): string {
-  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
+
+onMounted(() => {
+  if (userStore.token) {
+    fetchChatSessions();
+  }
+});
 </script>
 
 <template>
@@ -83,8 +158,21 @@ function formatTime(date: Date): string {
     <div class="drawer-content flex flex-col">
       <!-- Navbar -->
       <nav class="navbar bg-base-300 sticky top-0 z-10">
-        <label for="chat-drawer" aria-label="open sidebar" class="btn btn-square btn-ghost">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-6">
+        <label
+          for="chat-drawer"
+          aria-label="open sidebar"
+          class="btn btn-square btn-ghost"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="size-6"
+          >
             <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
             <line x1="9" x2="9" y1="3" y2="21" />
           </svg>
@@ -93,7 +181,11 @@ function formatTime(date: Date): string {
           <span class="font-semibold text-lg">AI Chat</span>
         </div>
         <div class="px-2">
-          <button @click="handleLogout" class="btn btn-ghost btn-sm" title="Logout">
+          <button
+            @click="handleLogout"
+            class="btn btn-ghost btn-sm"
+            title="Logout"
+          >
             Logout
           </button>
         </div>
@@ -101,6 +193,10 @@ function formatTime(date: Date): string {
 
       <!-- Messages Area -->
       <div ref="chatContainer" class="flex-1 overflow-y-auto p-4 space-y-4">
+        <h2 class="text-xl font-bold mb-4 text-center" v-if="currentSession">
+          {{ currentSession.title || "New Chat" }}
+        </h2>
+
         <div
           v-for="msg in messages"
           :key="msg.id"
@@ -108,19 +204,36 @@ function formatTime(date: Date): string {
           :class="msg.role === 'user' ? 'chat-end' : 'chat-start'"
         >
           <div class="chat-image avatar">
-            <div class="w-10 rounded-full" :class="msg.role === 'user' ? 'bg-primary text-primary-content' : 'bg-secondary text-secondary-content'">
+            <div
+              class="w-10 rounded-full"
+              :class="
+                msg.role === 'user'
+                  ? 'bg-primary text-primary-content'
+                  : 'bg-secondary text-secondary-content'
+              "
+            >
               <span class="text-sm">
-                {{ msg.role === 'user' ? (userStore.userInfo?.username?.charAt(0)?.toUpperCase() || 'U') : 'AI' }}
+                {{
+                  msg.role === "user"
+                    ? userStore.userInfo?.username?.charAt(0)?.toUpperCase() ||
+                      "U"
+                    : "AI"
+                }}
               </span>
             </div>
           </div>
 
           <div class="chat-header">
-            {{ msg.role === 'user' ? 'You' : 'AI Assistant' }}
-            <time class="text-xs opacity-50 ml-2">{{ formatTime(msg.timestamp) }}</time>
+            {{ msg.role === "user" ? "You" : "AI Assistant" }}
+            <time class="text-xs opacity-50 ml-2">{{
+              formatTime(msg.timestamp)
+            }}</time>
           </div>
 
-          <div class="chat-bubble" :class="msg.role === 'user' ? 'chat-bubble-primary' : ''">
+          <div
+            class="chat-bubble"
+            :class="msg.role === 'user' ? 'chat-bubble-primary' : ''"
+          >
             {{ msg.content }}
           </div>
         </div>
@@ -153,7 +266,16 @@ function formatTime(date: Date): string {
             :disabled="!inputMessage.trim() || isTyping"
             class="btn btn-primary shrink-0"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-5">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="size-5"
+            >
               <path d="m22 2-7 20-4-9-9-4Z" />
               <path d="M22 2 11 13" />
             </svg>
@@ -164,19 +286,42 @@ function formatTime(date: Date): string {
 
     <!-- Drawer Side (Sidebar) -->
     <div class="drawer-side is-drawer-close:overflow-visible">
-      <label for="chat-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+      <label
+        for="chat-drawer"
+        aria-label="close sidebar"
+        class="drawer-overlay"
+      ></label>
 
-      <div class="flex min-h-full flex-col items-start bg-base-200 is-drawer-close:w-14 is-drawer-open:w-64">
+      <div
+        class="flex min-h-full flex-col items-start bg-base-200 is-drawer-close:w-14 is-drawer-open:w-64"
+      >
         <!-- Sidebar Header -->
-        <div class="p-4 border-b border-base-300 w-full flex items-center justify-between">
+        <div
+          class="p-4 border-b border-base-300 w-full flex items-center justify-between"
+        >
           <h1 class="font-bold text-xl is-drawer-close:hidden">AI Chat</h1>
-          <span class="is-drawer-close:block is-drawer-open:hidden text-primary font-bold">AI</span>
+          <span
+            class="is-drawer-close:block is-drawer-open:hidden text-primary font-bold"
+            >AI</span
+          >
         </div>
 
         <!-- New Chat Button -->
         <div class="p-2 w-full">
-          <button class="btn btn-outline w-full is-drawer-close:justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4">
+          <button
+            @click="handleNewChat"
+            class="btn btn-outline w-full is-drawer-close:justify-center"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="size-4"
+            >
               <path d="M5 12h14" />
               <path d="M12 5v14" />
             </svg>
@@ -189,12 +334,29 @@ function formatTime(date: Date): string {
           <li class="menu-title is-drawer-close:hidden">
             <span class="text-xs text-base-content/50">Recent Chats</span>
           </li>
-          <li>
-            <a class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="Sample Chat">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          <li v-for="session in chatStore.sessions" :key="session.id">
+            <a
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right"
+              :data-tip="session.title || 'New Chat'"
+              @click="selectChatSession(session.id)"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="size-4"
+              >
+                <path
+                  d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                />
               </svg>
-              <span class="is-drawer-close:hidden">Sample Chat</span>
+              <span class="is-drawer-close:hidden">
+                {{ session.title || "New Chat" }}
+              </span>
             </a>
           </li>
         </ul>
@@ -202,9 +364,24 @@ function formatTime(date: Date): string {
         <!-- API Keys Nav -->
         <ul class="menu w-full px-2">
           <li>
-            <router-link to="/api-keys" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="API Keys">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4">
-                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+            <router-link
+              to="/api-keys"
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right"
+              data-tip="API Keys"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="size-4"
+              >
+                <path
+                  d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+                />
               </svg>
               <span class="is-drawer-close:hidden">API Keys</span>
             </router-link>
@@ -216,13 +393,27 @@ function formatTime(date: Date): string {
           <div class="flex items-center gap-2">
             <div class="avatar placeholder shrink-0">
               <div class="bg-primary text-primary-content rounded-full w-8">
-                <span class="text-xs">{{ userStore.userInfo?.username?.charAt(0)?.toUpperCase() || 'U' }}</span>
+                <span class="text-xs">{{
+                  userStore.userInfo?.username?.charAt(0)?.toUpperCase() || "U"
+                }}</span>
               </div>
             </div>
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium truncate is-drawer-close:hidden">
                 {{ userStore.userInfo?.username }}
+                <span v-if="currentSession" class="text-xs text-gray-500 ml-2"
+                  >· {{ currentSession.title || "New Chat" }}</span
+                >
               </div>
+            </div>
+            <div class="is-drawer-close:hidden">
+              <button
+                @click="handleLogout"
+                class="btn btn-ghost btn-sm"
+                title="Logout"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>

@@ -1,46 +1,78 @@
-import { ref, computed } from 'vue'
-import { defineStore } from 'pinia'
-import { useRouter } from 'vue-router'
+import { ref, computed } from "vue";
+import { defineStore } from "pinia";
+import { useRouter } from "vue-router";
+import {
+  register as apiRegister,
+  login as apiLogin,
+  getMe,
+} from "../api/index";
 
 export interface UserInfo {
-  id: string
-  username: string
-  email: string
-  avatar?: string
+  id: string;
+  username: string;
+  email: string;
+  token?: string;
 }
 
-export const useUserStore = defineStore('user', () => {
-  const token = ref<string>(localStorage.getItem('token') || '')
-  const userInfo = ref<UserInfo | null>(null)
+export const useUserStore = defineStore("user", () => {
+  const token = ref<string>(localStorage.getItem("token") || "");
+  const userInfo = ref<UserInfo | null>(null);
 
-  const isLoggedIn = computed(() => !!token.value)
+  const isLoggedIn = computed(() => !!token.value);
 
   function setToken(newToken: string) {
-    token.value = newToken
-    localStorage.setItem('token', newToken)
+    token.value = newToken;
+    localStorage.setItem("token", newToken);
   }
 
   function setUserInfo(info: UserInfo) {
-    userInfo.value = info
+    userInfo.value = info;
   }
 
-  function login(username: string, password: string) {
-    // TODO: Replace with real API call
-    const mockToken = 'mock-token-' + Date.now()
-    setToken(mockToken)
+  async function login(username: string, password: string): Promise<void> {
+    const result = await apiLogin(username, password);
+    setToken(result.access_token);
+    const user = await getMe(result.access_token);
     setUserInfo({
-      id: '1',
-      username,
-      email: `${username}@example.com`,
-      avatar: '',
-    })
+      id: user.id,
+      username: user.username,
+      email: user.email,
+    });
+  }
+
+  async function register(
+    username: string,
+    email: string,
+    password: string,
+  ): Promise<void> {
+    await apiRegister(username, email, password);
+  }
+
+  async function fetchMe(): Promise<void> {
+    if (!token.value) return;
+    const user = await getMe(token.value);
+    setUserInfo({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+    });
   }
 
   function logout() {
-    token.value = ''
-    userInfo.value = null
-    localStorage.removeItem('token')
+    token.value = "";
+    userInfo.value = null;
+    localStorage.removeItem("token");
   }
 
-  return { token, userInfo, isLoggedIn, setToken, setUserInfo, login, logout }
-})
+  return {
+    token,
+    userInfo,
+    isLoggedIn,
+    setToken,
+    setUserInfo,
+    login,
+    register,
+    fetchMe,
+    logout,
+  };
+});
