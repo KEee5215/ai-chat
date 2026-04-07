@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm run build-only)",
+      "Bash(timeout 5 pnpm run dev)",
+      "WebSearch"
+    ]
+  }
+}
