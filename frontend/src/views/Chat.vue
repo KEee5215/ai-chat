@@ -76,61 +76,31 @@ function formatTime(date: Date): string {
 </script>
 
 <template>
-  <div class="flex h-screen bg-base-200">
-    <!-- Sidebar -->
-    <div class="w-64 bg-base-100 border-r border-base-300 flex flex-col">
-      <div class="p-4 border-b border-base-300">
-        <div class="flex items-center justify-between">
-          <h1 class="text-xl font-bold">AI Chat</h1>
-          <button @click="handleLogout" class="btn btn-ghost btn-sm btn-square">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-          </button>
-        </div>
-      </div>
+  <div class="drawer lg:drawer-open">
+    <input id="chat-drawer" type="checkbox" class="drawer-toggle" />
 
-      <div class="flex-1 overflow-y-auto p-4">
-        <button class="btn btn-outline w-full justify-start mb-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+    <!-- Drawer Content (Main Chat Area) -->
+    <div class="drawer-content flex flex-col">
+      <!-- Navbar -->
+      <nav class="navbar bg-base-300 sticky top-0 z-10">
+        <label for="chat-drawer" aria-label="open sidebar" class="btn btn-square btn-ghost">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-6">
+            <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+            <line x1="9" x2="9" y1="3" y2="21" />
           </svg>
-          New Chat
-        </button>
-
-        <div class="space-y-1">
-          <div class="text-xs text-base-content/50 px-2 py-1">Recent Chats</div>
-          <!-- Placeholder for chat history -->
-          <button class="btn btn-ghost btn-sm w-full justify-start text-left truncate">
-            Sample Chat
+        </label>
+        <div class="flex-1 px-4">
+          <span class="font-semibold text-lg">AI Chat</span>
+        </div>
+        <div class="px-2">
+          <button @click="handleLogout" class="btn btn-ghost btn-sm" title="Logout">
+            Logout
           </button>
         </div>
-      </div>
+      </nav>
 
-      <!-- User info -->
-      <div class="p-4 border-t border-base-300">
-        <div class="flex items-center gap-2">
-          <div class="avatar placeholder">
-            <div class="bg-primary text-primary-content rounded-full w-8">
-              <span class="text-xs">{{ userStore.userInfo?.username?.charAt(0)?.toUpperCase() || 'U' }}</span>
-            </div>
-          </div>
-          <span class="text-sm truncate">{{ userStore.userInfo?.username }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Main Chat Area -->
-    <div class="flex-1 flex flex-col">
-      <!-- Chat Header -->
-      <div class="navbar bg-base-100 border-b border-base-300 px-6">
-        <div class="flex-1">
-          <span class="text-lg font-semibold">Chat</span>
-        </div>
-      </div>
-
-      <!-- Messages -->
-      <div ref="chatContainer" class="flex-1 overflow-y-auto p-6 space-y-4">
+      <!-- Messages Area -->
+      <div ref="chatContainer" class="flex-1 overflow-y-auto p-4 space-y-4">
         <div
           v-for="msg in messages"
           :key="msg.id"
@@ -175,18 +145,74 @@ function formatTime(date: Date): string {
             v-model="inputMessage"
             @keydown="handleKeydown"
             placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
-            class="textarea textarea-bordered flex-1"
+            class="textarea textarea-bordered flex-1 resize-none"
             rows="1"
           ></textarea>
           <button
             @click="sendMessage"
             :disabled="!inputMessage.trim() || isTyping"
-            class="btn btn-primary"
+            class="btn btn-primary shrink-0"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-5">
+              <path d="m22 2-7 20-4-9-9-4Z" />
+              <path d="M22 2 11 13" />
             </svg>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drawer Side (Sidebar) -->
+    <div class="drawer-side is-drawer-close:overflow-visible">
+      <label for="chat-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+
+      <div class="flex min-h-full flex-col items-start bg-base-200 is-drawer-close:w-14 is-drawer-open:w-64">
+        <!-- Sidebar Header -->
+        <div class="p-4 border-b border-base-300 w-full flex items-center justify-between">
+          <h1 class="font-bold text-xl is-drawer-close:hidden">AI Chat</h1>
+          <span class="is-drawer-close:block is-drawer-open:hidden text-primary font-bold">AI</span>
+        </div>
+
+        <!-- New Chat Button -->
+        <div class="p-2 w-full">
+          <button class="btn btn-outline w-full is-drawer-close:justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4">
+              <path d="M5 12h14" />
+              <path d="M12 5v14" />
+            </svg>
+            <span class="is-drawer-close:hidden">New Chat</span>
+          </button>
+        </div>
+
+        <!-- Recent Chats Menu -->
+        <ul class="menu w-full grow px-2 pt-2">
+          <li class="menu-title is-drawer-close:hidden">
+            <span class="text-xs text-base-content/50">Recent Chats</span>
+          </li>
+          <li>
+            <a class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="Sample Chat">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span class="is-drawer-close:hidden">Sample Chat</span>
+            </a>
+          </li>
+        </ul>
+
+        <!-- User Info Footer -->
+        <div class="p-4 border-t border-base-300 w-full">
+          <div class="flex items-center gap-2">
+            <div class="avatar placeholder shrink-0">
+              <div class="bg-primary text-primary-content rounded-full w-8">
+                <span class="text-xs">{{ userStore.userInfo?.username?.charAt(0)?.toUpperCase() || 'U' }}</span>
+              </div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium truncate is-drawer-close:hidden">
+                {{ userStore.userInfo?.username }}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
