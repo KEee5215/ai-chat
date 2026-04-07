@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip show langchain-core langchain-community)",
+      "Bash(findstr \"Version\")",
+      "Bash(curl -v 'http://127.0.0.1:8000/api/v1/chats/sessions/11d9d48c-aad0-4aed-88f9-c5f4f9cdf0c2/messages' -H 'Content-Type: application/json' --data '{\"\"content\"\":\"\"hello\"\"}')",
+      "Bash(curl -X 'POST' 'http://127.0.0.1:8000/api/v1/chats/sessions/11d9d48c-aad0-4aed-88f9-c5f4f9cdf0c2/messages' -H 'accept: application/json' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhOWU3Y2I2MS0wYWZkLTRhYzYtYjViNC0wNDM1MmQwZTJiNmIiLCJleHAiOjE3NzU1NTYzOTN9.BMR-FtjTz4Dt-xSQ8Ybo2KObaso7kEvCn34Cd-WPfEo' -H 'Content-Type: application/json' -d '{\"\"content\"\":\"\"hello\"\"}')"
+    ]
+  }
+}
