@@ -17,6 +17,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/api-keys',
+      name: 'api-keys',
+      component: () => import('@/views/ApiKeyManager.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/',
       redirect: '/chat',
     },
