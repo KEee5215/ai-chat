@@ -4,12 +4,14 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+# from sqlalchemy.dialects.postgresql import UUID
 
 from app.api.deps import CurrentUser, DbSession
 from app.schemas.chat import (
     ChatSessionCreate,
     ChatSessionResponse,
     MessageCreate,
+    MessageResponse,
     ChatCompletionResponse,
 )
 from app.services.chat_service import ChatService
@@ -31,7 +33,7 @@ async def list_sessions(
 
     return [
         {
-            "id": session.id,
+            "id": str(session.id),
             "title": session.title,
             "created_at": session.created_at,
             "updated_at": session.updated_at,
@@ -55,13 +57,27 @@ async def create_session(
 
     # 加载消息
     messages = await chat_service.get_messages(str(session.id))
+    
+    # 将 ORM 消息对象转换为 Pydantic schema
+    message_responses = [
+        MessageResponse(
+            id=str(msg.id),
+            session_id=str(msg.session_id),
+            role=msg.role,
+            content=msg.content,
+            tokens_used=msg.tokens_used,
+            created_at=msg.created_at,
+        )
+        for msg in messages
+    ]
+    
     return ChatSessionResponse(
         id=str(session.id),
         user_id=str(session.user_id),
         title=session.title,
         created_at=session.created_at,
         updated_at=session.updated_at,
-        messages=messages,
+        messages=message_responses,
     )
 
 
@@ -82,6 +98,19 @@ async def get_session(
         )
 
     messages = await chat_service.get_messages(session_id)
+    
+    # 将 ORM 消息对象转换为 Pydantic schema
+    message_responses = [
+        MessageResponse(
+            id=str(msg.id),
+            session_id=str(msg.session_id),
+            role=msg.role,
+            content=msg.content,
+            tokens_used=msg.tokens_used,
+            created_at=msg.created_at,
+        )
+        for msg in messages
+    ]
 
     return ChatSessionResponse(
         id=str(session.id),
@@ -89,7 +118,7 @@ async def get_session(
         title=session.title,
         created_at=session.created_at,
         updated_at=session.updated_at,
-        messages=messages,
+        messages=message_responses,
     )
 
 

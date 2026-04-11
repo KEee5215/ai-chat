@@ -136,7 +136,13 @@ class ChatService:
 
         # 更新会话标题（如果是第一条消息）
         if len(messages) == 1 and session.title == "新对话":
-            session.title = user_message[:50]
-            await self.db.commit()
+            # 重新查询 session 以确保它仍然 attached 到当前事务
+            result = await self.db.execute(
+                select(ChatSession).where(ChatSession.id == uuid.UUID(session_id))
+            )
+            current_session = result.scalar_one_or_none()
+            if current_session:
+                current_session.title = user_message[:50]
+                await self.db.commit()
 
         return user_msg, ai_msg

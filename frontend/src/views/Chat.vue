@@ -3,6 +3,7 @@ import { ref, nextTick, onMounted } from "vue";
 import { useUserStore } from "@/stores/user";
 import { useChatStore, type ChatSession } from "@/stores/chat";
 import { useRouter } from "vue-router";
+import AIMarkdown from "@/components/AIMarkdown.vue";
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
@@ -81,8 +82,9 @@ async function sendMessage() {
 
   try {
     // 创建一个助手消息对象用于累积内容
+    const assistantMsgId = messageId++;
     const assistantMsg: Message = {
-      id: messageId++,
+      id: assistantMsgId,
       role: "assistant",
       content: "",
       timestamp: new Date(),
@@ -93,7 +95,16 @@ async function sendMessage() {
     const onChunk = (text: string, done: boolean) => {
       // 跳过空内容
       if (text) {
-        assistantMsg.content += text;
+        // 使用Vue的响应式更新方式
+        messages.value = messages.value.map((msg) => {
+          if (msg.id === assistantMsgId) {
+            return {
+              ...msg,
+              content: msg.content + text,
+            };
+          }
+          return msg;
+        });
         scrollToBottom();
       }
       if (done) {
@@ -234,7 +245,11 @@ onMounted(() => {
             class="chat-bubble"
             :class="msg.role === 'user' ? 'chat-bubble-primary' : ''"
           >
-            {{ msg.content }}
+            <AIMarkdown
+              v-if="msg.role === 'assistant'"
+              :content="msg.content"
+            />
+            <span v-else>{{ msg.content }}</span>
           </div>
         </div>
 
